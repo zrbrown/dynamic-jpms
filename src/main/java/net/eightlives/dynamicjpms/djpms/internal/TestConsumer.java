@@ -14,7 +14,7 @@ public class TestConsumer {
     private static final String jarLocation = "file:///home/zack/.m2/repository/com/zackrbrown/test/moduletest/1.0-SNAPSHOT";
 
     public static void main(String[] args) throws InterruptedException {
-        ModuleRegistrar m = new ModuleRegistrarImpl().getInstance();
+        ModuleRegistrar m = ModuleRegistrar.getInstance();
 
         SubmissionPublisher<Class<Dog>> dogPublisher = m.subscribeRegistrations(Dog.class);
         ModuleSubscriber<Class<Dog>> dogSubscriber = new ModuleSubscriber<>(dogClass

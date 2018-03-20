@@ -8,11 +8,11 @@ import java.util.concurrent.SubmissionPublisher;
 
 public interface ModuleRegistrar {
 
-    default ModuleRegistrar getInstance() {
+    static ModuleRegistrar getInstance() {
         return new ModuleRegistrarImpl();
     }
 
-    ModuleLayer registerModule(String moduleName, Path moduleLocation);
+    abstract ModuleLayer registerModule(String moduleName, Path moduleLocation);
 
     void unregisterModule(Module module);
 
