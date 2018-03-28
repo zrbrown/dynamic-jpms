@@ -6,6 +6,7 @@ import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 import java.lang.module.*;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,8 +15,10 @@ import java.util.stream.Collectors;
 public class ModuleRegistrarImpl2 implements ModuleRegistrar {
 
     private final TypeSafeInsertMap publishers = new TypeSafeInsertMap();
-    private final Map<String, List<UnresolvedModule>> requiredModuleDependents = new HashMap<>();
-    private final Map<String, ModuleLayer> resolvedModuleLayers = new HashMap<>();
+    private final Set<String> bootLayerModules = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
+    private final Map<String, ModuleLayer> resolvedModuleLayers = new HashMap<>(); //TODO only create resolved leaves
+    private final Map<UnresolvedModule, List<String>> unresolvedModuleDependencies = new ConcurrentHashMap<>();
+    private final Map<String, List<UnresolvedModule>> requiredModuleDependents = new ConcurrentHashMap<>();
 
     @Override
     public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
@@ -29,18 +32,17 @@ public class ModuleRegistrarImpl2 implements ModuleRegistrar {
         Optional<ModuleReference> moduleReference = finder.find(moduleName);
         if (moduleReference.isPresent()) {
             ModuleDescriptor descriptor = moduleReference.get().descriptor();
-            Configuration configuration;
             List<ModuleLayer> multipleLayers = new ArrayList<>();
-            UnresolvedModule unresolvedModule = new UnresolvedModule(moduleName, moduleLocation);
 
             boolean modulesResolved = true;
             for (ModuleDescriptor.Requires require : descriptor.requires()) {
                 String dependencyName = require.name();
+
                 if (!resolvedModuleLayers.containsKey(dependencyName) &&
                         !moduleLayer.toString().equals(dependencyName)
-                        && !ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet()).contains(dependencyName)) {
+                        && !bootLayerModules.contains(dependencyName)) {
                     modulesResolved = false;
-                    addUnresolvedModule(dependencyName, unresolvedModule);
+                    addUnresolvedModule(dependencyName, new UnresolvedModule(moduleName, moduleLocation));
                 }
             }
 
@@ -52,15 +54,14 @@ public class ModuleRegistrarImpl2 implements ModuleRegistrar {
                     String dependencyName = require.name();
 
                     if (!moduleLayer.toString().equals(dependencyName)
-                            && !ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet()).contains(dependencyName)) {
+                            && !bootLayerModules.contains(dependencyName)) {
                         parentConfigs.add(resolvedModuleLayers.get(dependencyName).configuration());
                         multipleLayers.add(resolvedModuleLayers.get(dependencyName));
                     }
                 }
 
                 try {
-                    configuration = Configuration.resolve(finder, parentConfigs, ModuleFinder.of(), Collections.singletonList(moduleName));
-
+                    Configuration configuration = Configuration.resolve(finder, parentConfigs, ModuleFinder.of(), Collections.singletonList(moduleName));
                     ModuleLayer newLayer = ModuleLayer.defineModulesWithOneLoader(configuration, multipleLayers, ClassLoader.getSystemClassLoader()).layer();
                     ClassLoader classLoader = newLayer.findLoader(moduleName);
 
@@ -81,15 +82,17 @@ public class ModuleRegistrarImpl2 implements ModuleRegistrar {
 
                     resolvedModuleLayers.put(moduleName, newLayer);
 
-                    synchronized (requiredModuleDependents) {
-                        if (requiredModuleDependents.containsKey(moduleName)) {
-                            List<UnresolvedModule> unresolvedModules = new ArrayList<>(requiredModuleDependents.get(moduleName));
-                            for (UnresolvedModule unresolved : unresolvedModules) {
-                                registerModule(unresolved.moduleName, unresolved.moduleLocation, newLayer);//TODO deadlock for sure
+                    if (requiredModuleDependents.containsKey(moduleName)) {
+                        List<UnresolvedModule> unresolvedModules = new ArrayList<>(requiredModuleDependents.get(moduleName));
+                        for (UnresolvedModule unresolved : unresolvedModules) {
+                            if (unresolvedModuleDependencies.get(unresolved).size() == 1 &&
+                                    unresolvedModuleDependencies.get(unresolved).get(0).equals(moduleName)) {
+                                registerModule(unresolved.moduleName, unresolved.moduleLocation, newLayer);
+                                unresolvedModuleDependencies.remove(unresolved);
                             }
-
-                            requiredModuleDependents.remove(moduleName);
                         }
+
+                        requiredModuleDependents.remove(moduleName);
                     }
 
                     return newLayer;
@@ -124,6 +127,13 @@ public class ModuleRegistrarImpl2 implements ModuleRegistrar {
             List<UnresolvedModule> unresolvedModules = requiredModuleDependents.computeIfAbsent(requiredModule, s -> new ArrayList<>());
             if (!unresolvedModules.contains(unresolvedModule)) {
                 unresolvedModules.add(unresolvedModule);
+            }
+        }
+
+        synchronized (unresolvedModuleDependencies) {
+            List<String> unresolvedDependencies = unresolvedModuleDependencies.computeIfAbsent(unresolvedModule, m -> new ArrayList<>());
+            if (!unresolvedDependencies.contains(requiredModule)) {
+                unresolvedDependencies.add(requiredModule);
             }
         }
     }
