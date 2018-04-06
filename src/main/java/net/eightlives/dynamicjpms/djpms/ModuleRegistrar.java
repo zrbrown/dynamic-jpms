@@ -1,6 +1,6 @@
 package net.eightlives.dynamicjpms.djpms;
 
-import net.eightlives.dynamicjpms.djpms.internal.ModuleRegistrarImpl2;
+import net.eightlives.dynamicjpms.djpms.internal.ModuleRegistrarImpl;
 
 import java.nio.file.Path;
 import java.util.Collection;
@@ -9,7 +9,7 @@ import java.util.concurrent.SubmissionPublisher;
 public interface ModuleRegistrar {
 
     static ModuleRegistrar getInstance() {
-        return new ModuleRegistrarImpl2();
+        return new ModuleRegistrarImpl();
     }
 
     ModuleLayer registerModule(String moduleName, Path moduleLocation);

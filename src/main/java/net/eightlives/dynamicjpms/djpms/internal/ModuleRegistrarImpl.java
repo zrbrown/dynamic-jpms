@@ -3,72 +3,117 @@ package net.eightlives.dynamicjpms.djpms.internal;
 import net.eightlives.dynamicjpms.djpms.Module;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 
-import java.lang.module.Configuration;
-import java.lang.module.FindException;
-import java.lang.module.ModuleFinder;
+import java.lang.module.*;
+import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.SubmissionPublisher;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class ModuleRegistrarImpl implements ModuleRegistrar {
 
-    private static final Pattern MISSING_MODULE_PATTERN = Pattern.compile("Module (.*) not found");
+    private static final Set<String> BOOT_LAYER_MODULES = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
 
     private final TypeSafeInsertMap publishers = new TypeSafeInsertMap();
-    private final Map<String, List<UnresolvedModule>> requiredModuleDependents = new HashMap<>();
-    private final Map<String, ModuleLayer> resolvedModuleLayers = new HashMap<>();
-
-    @Override
-    public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
-        return registerModule(moduleName, moduleLocation, ModuleLayer.boot());
-    }
+    private final Map<String, List<UnresolvedModule>> requiredModuleDependents = new ConcurrentHashMap<>();
+    private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
 
     //TODO check for concurrent issues
-    private ModuleLayer registerModule(String moduleName, Path moduleLocation, ModuleLayer moduleLayer) {
+    @Override
+    public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
         ModuleFinder finder = ModuleFinder.of(moduleLocation);
+        Optional<ModuleReference> moduleReference = finder.find(moduleName);
 
-        Configuration configuration;
-        List<ModuleLayer> multipleLayers = new ArrayList<>();
-        try {
-            List<Configuration> parentConfigs = new ArrayList<>();
-            parentConfigs.add(moduleLayer.configuration());
-            multipleLayers.add(moduleLayer);
-            for (Map.Entry<String, List<UnresolvedModule>> unresolvedModules : requiredModuleDependents.entrySet()) {
-                for (UnresolvedModule unresolvedModule : unresolvedModules.getValue()) {
-                    if (unresolvedModule.moduleName.equals(moduleName)) {
-                        if (resolvedModuleLayers.keySet().contains(unresolvedModules.getKey()) &&
-                                !moduleLayer.toString().equals(unresolvedModules.getKey())) {
-                            parentConfigs.add(resolvedModuleLayers.get(unresolvedModules.getKey()).configuration());
-                            multipleLayers.add(resolvedModuleLayers.get(unresolvedModules.getKey()));
+        if (moduleReference.isPresent()) {
+            ModuleNode moduleNode = new ModuleNode(moduleReference.get());
+            moduleNodes.put(moduleName, moduleNode);
+
+            ModuleDescriptor descriptor = moduleReference.get().descriptor();
+
+            for (ModuleDescriptor.Requires require : descriptor.requires()) {
+                String dependencyName = require.name();
+
+                if (!BOOT_LAYER_MODULES.contains(dependencyName)) {
+                    if (moduleNodes.containsKey(dependencyName)) {
+                        moduleNode.addDependencyNode(moduleNodes.get(dependencyName));
+
+                        if (!moduleNodes.get(dependencyName).isResolved()) {
+                            addUnresolvedModule(dependencyName, new UnresolvedModule(moduleName, moduleLocation));
+                            moduleNode.addUnresolvedDependency(dependencyName);
                         }
+                    } else {
+                        addUnresolvedModule(dependencyName, new UnresolvedModule(moduleName, moduleLocation));
+                        moduleNode.addUnresolvedDependency(dependencyName);
                     }
                 }
             }
-            configuration = Configuration.resolve(finder, parentConfigs, ModuleFinder.of(), Collections.singletonList(moduleName));
-        } catch (FindException e) {
-            Matcher matcher = MISSING_MODULE_PATTERN.matcher(e.getMessage());
-            if (matcher.find()) {
-                String requiredModule = matcher.group(1);
-                System.out.println(e.getMessage());
 
-                if (resolvedModuleLayers.containsKey(requiredModule)) {
-                    System.out.println(String.format("Oh! it's already registered, let's try with %s layer", requiredModule));
-                    return registerModule(moduleName, moduleLocation, resolvedModuleLayers.get(requiredModule));
-                } else {
-                    addUnresolvedModule(requiredModule, new UnresolvedModule(moduleName, moduleLocation));
-                }
-                return null;//TODO something else probably, make the return optional at least
-                //TODO actually maybe return completablefuture
+            if (moduleNode.isResolved()) {
+                registerModule(moduleNode, finder);
             }
-            return null;
         }
 
-        ModuleLayer newLayer = ModuleLayer.defineModulesWithOneLoader(configuration, multipleLayers, ClassLoader.getSystemClassLoader()).layer();
-        ClassLoader classLoader = newLayer.findLoader(moduleName);
+        return null;
+    }
 
-        newLayer.findModule(moduleName).ifPresent(module -> module.getDescriptor().provides()
+    private ModuleLayer registerModule(ModuleNode moduleNode, ModuleFinder finder) {
+        String moduleName = moduleNode.getModuleName();
+
+        try {
+            ModuleLayer newLayer = resolveModule(moduleNode, finder);
+
+            if (requiredModuleDependents.containsKey(moduleName)) {
+                List<UnresolvedModule> unresolvedModules = new ArrayList<>(requiredModuleDependents.get(moduleName));
+                for (UnresolvedModule unresolved : unresolvedModules) {
+                    ModuleNode unresolvedNode = moduleNodes.get(unresolved.moduleName);
+                    unresolvedNode.removeUnresolvedDependency(moduleName);
+                    unresolvedNode.addDependencyNode(moduleNode);
+
+                    if (unresolvedNode.isResolved()) {
+                        ModuleFinder resolvedNodeFinder = ModuleFinder.of(Paths.get(unresolvedNode.getModuleReference().location().get()));
+                        registerModule(unresolvedNode, resolvedNodeFinder);
+                    }
+                }
+
+                requiredModuleDependents.remove(moduleName);
+            }
+
+            return newLayer;
+        } catch (FindException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private ModuleLayer resolveModule(ModuleNode moduleNode, ModuleFinder finder) {
+        List<ModuleLayer> multipleLayers = new ArrayList<>();
+        ModuleLayer bootLayer = ModuleLayer.boot();
+        multipleLayers.add(bootLayer);
+        List<Configuration> parentConfigs = new ArrayList<>();
+        parentConfigs.add(bootLayer.configuration());
+
+        for (ModuleNode dependencyNode : moduleNode.getDependencyNodes()) {
+            parentConfigs.add(dependencyNode.getModuleLayer().configuration());
+            multipleLayers.add(dependencyNode.getModuleLayer());
+        }
+
+        Configuration configuration = Configuration.resolve(finder, parentConfigs, ModuleFinder.of(), Collections.singletonList(moduleNode.getModuleName()));
+        ModuleLayer newLayer = ModuleLayer.defineModulesWithOneLoader(configuration, multipleLayers, ClassLoader.getSystemClassLoader()).layer();
+        moduleNode.setModuleLayer(newLayer);
+
+        notifySubscribers(moduleNode.getModuleName(), newLayer);
+
+        System.out.println(String.format("Registered %s", moduleNode.getModuleName()));
+
+        return newLayer;
+    }
+
+    private void notifySubscribers(String moduleName, ModuleLayer moduleLayer) {
+        ClassLoader classLoader = moduleLayer.findLoader(moduleName);
+
+        moduleLayer.findModule(moduleName).ifPresent(module -> module.getDescriptor().provides()
                 .forEach(provide -> {
                     try {
                         SubmissionPublisher<Class> publisher = publishers.get(Class.forName(provide.service()));
@@ -80,23 +125,6 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                         e.printStackTrace();
                     }
                 }));
-
-        System.out.println(String.format("Registered %s", moduleName));
-
-        resolvedModuleLayers.put(moduleName, newLayer);
-
-        synchronized (requiredModuleDependents) {
-            if (requiredModuleDependents.containsKey(moduleName)) {
-                List<UnresolvedModule> unresolvedModules = new ArrayList<>(requiredModuleDependents.get(moduleName));
-                for (UnresolvedModule unresolvedModule : unresolvedModules) {
-                    registerModule(unresolvedModule.moduleName, unresolvedModule.moduleLocation, newLayer);
-                }
-
-                requiredModuleDependents.remove(moduleName);
-            }
-        }
-
-        return newLayer;
     }
 
     @Override
