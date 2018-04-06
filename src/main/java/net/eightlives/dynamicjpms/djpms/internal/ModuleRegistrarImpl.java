@@ -37,9 +37,9 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
                 if (!BOOT_LAYER_MODULES.contains(dependencyName)) {
                     if (moduleNodes.containsKey(dependencyName)) {
-                        moduleNode.addDependencyNode(moduleNodes.get(dependencyName));
-
-                        if (!moduleNodes.get(dependencyName).isResolved()) {
+                        if (moduleNodes.get(dependencyName).isResolved()) {
+                            moduleNode.addDependencyNode(moduleNodes.get(dependencyName));
+                        } else {
                             addUnresolvedModule(dependencyName, new UnresolvedModule(moduleName, moduleLocation));
                             moduleNode.addUnresolvedDependency(dependencyName);
                         }
