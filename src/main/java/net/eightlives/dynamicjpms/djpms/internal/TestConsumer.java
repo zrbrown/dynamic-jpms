@@ -3,6 +3,7 @@ package net.eightlives.dynamicjpms.djpms.internal;
 import net.eightlives.dynamicjpms.djpms.Dog;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 import net.eightlives.dynamicjpms.djpms.ModuleSubscriber;
+import net.eightlives.dynamicjpms.djpms.ModuleSPIListener;
 
 import java.net.URI;
 import java.nio.file.Paths;
@@ -14,9 +15,11 @@ public class TestConsumer {
     private static final String jarLocation = "file:///home/zack/.m2/repository/com/zackrbrown/test/moduletest/1.0-SNAPSHOT";
 
     public static void main(String[] args) throws InterruptedException {
-        ModuleRegistrar m = ModuleRegistrar.getInstance();
+        ModuleSPIListener spiListener = new ModuleSPIListener();
+        ModuleRegistrar m = new ModuleRegistrarImpl();
+        m.addModuleRegistrationListener(spiListener);
 
-        SubmissionPublisher<Class<Dog>> dogPublisher = m.subscribeRegistrations(Dog.class);
+        SubmissionPublisher<Class<Dog>> dogPublisher = spiListener.subscribeRegistrations(Dog.class);
         ModuleSubscriber<Class<Dog>> dogSubscriber = new ModuleSubscriber<>(dogClass
                 -> ServiceLoader.load(dogClass.getModule().getLayer(), Dog.class).stream()
                 .forEach(dogProvider -> {

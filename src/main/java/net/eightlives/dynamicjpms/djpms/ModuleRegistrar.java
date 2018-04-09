@@ -18,5 +18,5 @@ public interface ModuleRegistrar {
 
     Collection<Module> getRegisteredModules();
 
-    <T> SubmissionPublisher<Class<T>> subscribeRegistrations(Class<T> clazz);
+    void addModuleRegistrationListener(ModuleRegistrationListener listener);
 }
