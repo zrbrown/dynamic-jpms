@@ -18,9 +18,14 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private static final Set<String> BOOT_LAYER_MODULES = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
 
+    private final ModuleNodeResolver moduleNodeResolver;
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<String>> requiredModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
+
+    public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
+        this.moduleNodeResolver = moduleNodeResolver;
+    }
 
     @Override
     public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
@@ -66,7 +71,9 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     private ModuleLayer registerModule(ModuleNode moduleNode, ModuleFinder finder) {
-        ModuleLayer newLayer = resolveModule(moduleNode, finder);
+        ModuleLayer newLayer = moduleNodeResolver.resolveModule(moduleNode, finder);
+        System.out.println(String.format("Registered %s", moduleNode.getModuleName()));
+        notifyListeners(moduleNode.getModuleName(), newLayer);
         registerDependentModules(moduleNode);
         return newLayer;
     }
@@ -97,33 +104,6 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                     });
 
             requiredModuleDependents.remove(moduleName);
-        }
-    }
-
-    private ModuleLayer resolveModule(ModuleNode moduleNode, ModuleFinder finder) {
-        try {
-            ModuleLayer bootLayer = ModuleLayer.boot();
-            List<ModuleLayer> multipleLayers = new ArrayList<>();
-            multipleLayers.add(bootLayer);
-            List<Configuration> parentConfigs = new ArrayList<>();
-            parentConfigs.add(bootLayer.configuration());
-
-            for (ModuleNode dependencyNode : moduleNode.getDependencyNodes()) {
-                parentConfigs.add(dependencyNode.getModuleLayer().configuration());
-                multipleLayers.add(dependencyNode.getModuleLayer());
-            }
-
-            Configuration configuration = Configuration.resolve(finder, parentConfigs, ModuleFinder.of(), Collections.singletonList(moduleNode.getModuleName()));
-            ModuleLayer newLayer = ModuleLayer.defineModulesWithOneLoader(configuration, multipleLayers, ClassLoader.getSystemClassLoader()).layer();
-            moduleNode.setModuleLayer(newLayer);
-
-            notifyListeners(moduleNode.getModuleName(), newLayer);
-
-            System.out.println(String.format("Registered %s", moduleNode.getModuleName()));
-
-            return newLayer;
-        } catch (FindException e) {
-            throw new ModuleResolutionException(moduleNode, e);
         }
     }
 
