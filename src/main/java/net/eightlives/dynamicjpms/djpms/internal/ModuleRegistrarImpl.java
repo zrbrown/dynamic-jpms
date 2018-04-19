@@ -5,6 +5,8 @@ import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrationListener;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleNotFoundException;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleResolutionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.module.*;
 import java.nio.file.Path;
@@ -18,6 +20,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private static final Set<String> BOOT_LAYER_MODULES = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
 
+    private final Logger log = LoggerFactory.getLogger(ModuleRegistrarImpl.class);
     private final ModuleNodeResolver moduleNodeResolver;
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<String>> requiredModuleDependents = new ConcurrentHashMap<>();
@@ -62,8 +65,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
             try {
                 return registerModule(moduleNode, finder);
             } catch (Exception e) {
-                System.out.println("Exception while registering resolved module " + moduleNode.getModuleName());
-                e.printStackTrace();
+                log.error("Exception while registering resolved module " + moduleNode.getModuleName(), e);
             }
         }
 
@@ -72,7 +74,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private ModuleLayer registerModule(ModuleNode moduleNode, ModuleFinder finder) {
         ModuleLayer newLayer = moduleNodeResolver.resolveModule(moduleNode, finder);
-        System.out.println(String.format("Registered %s", moduleNode.getModuleName()));
+        log.info(String.format("Registered %s", moduleNode.getModuleName()));
         notifyListeners(moduleNode.getModuleName(), newLayer);
         registerDependentModules(moduleNode);
         return newLayer;
@@ -95,10 +97,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                                 ModuleFinder resolvedNodeFinder = ModuleFinder.of(Paths.get(unresolvedNode.getModuleReference().location().get()));
                                 registerModule(unresolvedNode, resolvedNodeFinder);
                             } catch (Exception e) {
-                                System.out.println("Exception occurred while registering dependent module " + unresolvedNode.getModuleName() +
-                                        " after resolution of module " + moduleName + ". Module " + unresolvedNode.getModuleName() +
-                                        " will not be auto-registered. To reattempt, use ModuleRegistrar.");
-                                e.printStackTrace();
+                                log.error("Exception occurred while registering dependent module " + unresolvedNode.getModuleName() +
+                                                " after resolution of module " + moduleName + ". Module " + unresolvedNode.getModuleName() +
+                                                " will not be auto-registered. To reattempt, use ModuleRegistrar.",
+                                        e);
                             }
                         }
                     });

@@ -1,5 +1,8 @@
 package net.eightlives.dynamicjpms.djpms;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.SubmissionPublisher;
@@ -7,6 +10,7 @@ import java.util.concurrent.SubmissionPublisher;
 // TODO put in new project (SPI extension support)
 public class ModuleSPIListener implements ModuleRegistrationListener {
 
+    private final Logger log = LoggerFactory.getLogger(ModuleSPIListener.class);
     private final TypeSafeInsertMap publishers = new TypeSafeInsertMap();
 
     @Override
@@ -22,8 +26,7 @@ public class ModuleSPIListener implements ModuleRegistrationListener {
                             publisher.submit(classLoader.loadClass(provider));
                         }
                     } catch (ClassNotFoundException e) {
-                        System.out.println("ClassNotFoundException while notifying subscribers to module " + moduleName);
-                        e.printStackTrace();
+                        log.error("ClassNotFoundException while notifying subscribers to module " + moduleName, e);
                     }
                 }));
     }
