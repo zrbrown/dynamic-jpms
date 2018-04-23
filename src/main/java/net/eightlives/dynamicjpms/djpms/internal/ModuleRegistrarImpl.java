@@ -4,16 +4,16 @@ import net.eightlives.dynamicjpms.djpms.Module;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrationListener;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleNotFoundException;
-import net.eightlives.dynamicjpms.djpms.exceptions.ModuleResolutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.module.*;
+import java.lang.module.ModuleDescriptor;
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.SubmissionPublisher;
 import java.util.stream.Collectors;
 
 public class ModuleRegistrarImpl implements ModuleRegistrar {
@@ -47,13 +47,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
             String dependencyName = require.name();
 
             if (!BOOT_LAYER_MODULES.contains(dependencyName)) {
-                if (moduleNodes.containsKey(dependencyName)) {
-                    if (moduleNodes.get(dependencyName).isResolved()) {
-                        moduleNode.addDependencyNode(moduleNodes.get(dependencyName));
-                    } else {
-                        addUnresolvedModule(dependencyName, moduleName);
-                        moduleNode.addUnresolvedDependency(dependencyName);
-                    }
+                if (moduleNodes.containsKey(dependencyName) && moduleNodes.get(dependencyName).isResolved()) {
+                    ModuleNode dependencyNode = moduleNodes.get(dependencyName);
+                    moduleNode.addDependencyNode(dependencyNode);
+                    dependencyNode.addDependentNode(moduleNode);
                 } else {
                     addUnresolvedModule(dependencyName, moduleName);
                     moduleNode.addUnresolvedDependency(dependencyName);
@@ -91,6 +88,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                     .forEach(unresolvedNode -> {
                         unresolvedNode.removeUnresolvedDependency(moduleName);
                         unresolvedNode.addDependencyNode(moduleNode);
+                        moduleNode.addDependentNode(unresolvedNode);
 
                         if (unresolvedNode.isResolved()) {
                             try {

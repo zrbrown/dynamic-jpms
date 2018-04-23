@@ -7,8 +7,9 @@ import java.util.Collection;
 public class ModuleNode {
 
     private final Collection<ModuleNode> dependencyNodes = new ArrayList<>();
-    private final ModuleReference moduleReference;
     private final Collection<String> unresolvedDependencies = new ArrayList<>();
+    private final Collection<ModuleNode> dependentNodes = new ArrayList<>();
+    private final ModuleReference moduleReference;
     private ModuleLayer moduleLayer;
 
     public ModuleNode(ModuleReference moduleReference) {
@@ -29,6 +30,14 @@ public class ModuleNode {
 
     public void removeUnresolvedDependency(String unresolvedDependency) {
         unresolvedDependencies.remove(unresolvedDependency);
+    }
+
+    public void addDependentNode(ModuleNode dependentNode) {
+        dependentNodes.add(dependentNode);
+    }
+
+    public Collection<ModuleNode> getDependentNodes() {
+        return new ArrayList<>(dependentNodes);
     }
 
     public Collection<String> getUnresolvedDependencies() {
