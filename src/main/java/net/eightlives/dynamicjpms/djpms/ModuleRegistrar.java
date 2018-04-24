@@ -1,5 +1,6 @@
 package net.eightlives.dynamicjpms.djpms;
 
+import net.eightlives.dynamicjpms.djpms.internal.ModuleNode;
 import net.eightlives.dynamicjpms.djpms.internal.ModuleNodeResolverImpl;
 import net.eightlives.dynamicjpms.djpms.internal.ModuleRegistrarImpl;
 
@@ -14,7 +15,7 @@ public interface ModuleRegistrar {
 
     ModuleLayer registerModule(String moduleName, Path moduleLocation);
 
-    void unregisterModule(Module module);
+    void unregisterModule(String moduleName);
 
     Collection<Module> getRegisteredModules();
 

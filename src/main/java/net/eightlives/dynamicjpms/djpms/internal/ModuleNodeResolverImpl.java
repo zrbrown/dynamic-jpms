@@ -34,4 +34,9 @@ public class ModuleNodeResolverImpl implements ModuleNodeResolver {
             throw new ModuleResolutionException(moduleNode, e);
         }
     }
+
+    @Override
+    public void removeModule(ModuleNode moduleNode) {
+        moduleNode.setModuleLayer(null);
+    }
 }
