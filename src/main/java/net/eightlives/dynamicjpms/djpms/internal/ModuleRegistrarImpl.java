@@ -21,10 +21,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private static final Set<String> BOOT_LAYER_MODULES = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
 
     private final Logger log = LoggerFactory.getLogger(ModuleRegistrarImpl.class);
-    private final ModuleNodeResolver moduleNodeResolver;
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<ModuleNode>> unresolvedModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
+    private final ModuleNodeResolver moduleNodeResolver;
 
     public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
         this.moduleNodeResolver = moduleNodeResolver;
@@ -134,11 +134,17 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     private void unregisterModule(ModuleNode moduleNode) {
+        if (!moduleNodes.containsKey(moduleNode.getModuleName())) {
+            log.debug("Module " + moduleNode.getModuleName() + " already unregistered, skipping.");
+            return;
+        }
+
         for (ModuleNode node : moduleNode.getDependentNodes()) {
-            unregisterModule(node.getModuleName());
+            unregisterModule(node);
         }
 
         moduleNodeResolver.removeModule(moduleNode);
+        moduleNodes.remove(moduleNode.getModuleName());
     }
 
     @Override
