@@ -153,6 +153,8 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
         }
 
         moduleNodeResolver.removeModule(moduleNode);
+
+        log.info(String.format("Unregistered %s", moduleNode.getModuleName()));
     }
 
     @Override
