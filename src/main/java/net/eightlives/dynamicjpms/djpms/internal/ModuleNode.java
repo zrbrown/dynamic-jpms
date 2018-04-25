@@ -3,6 +3,7 @@ package net.eightlives.dynamicjpms.djpms.internal;
 import java.lang.module.ModuleReference;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 
 public class ModuleNode {
 
@@ -10,7 +11,7 @@ public class ModuleNode {
     private final Collection<String> unresolvedDependencies = new ArrayList<>();
     private final Collection<ModuleNode> dependentNodes = new ArrayList<>();
     private final ModuleReference moduleReference;
-    private ModuleLayer moduleLayer;
+    private volatile ModuleLayer moduleLayer;
 
     public ModuleNode(ModuleReference moduleReference) {
         this.moduleReference = moduleReference;
@@ -34,6 +35,13 @@ public class ModuleNode {
 
     public void addDependentNode(ModuleNode dependentNode) {
         dependentNodes.add(dependentNode);
+    }
+
+    public void removeDependentNode(String moduleName) {
+        Optional<ModuleNode> dependentNode = dependentNodes.stream()
+                .filter(node -> node.getModuleName().equals(moduleName))
+                .findFirst();
+        dependentNode.ifPresent(dependentNodes::remove);
     }
 
     public Collection<ModuleNode> getDependentNodes() {

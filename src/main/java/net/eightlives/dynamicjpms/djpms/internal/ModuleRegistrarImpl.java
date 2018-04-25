@@ -22,7 +22,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private final Logger log = LoggerFactory.getLogger(ModuleRegistrarImpl.class);
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
-    private final Map<String, List<ModuleNode>> unresolvedModuleDependents = new ConcurrentHashMap<>();
+    private final Map<String, List<String>> unresolvedModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
     private final ModuleNodeResolver moduleNodeResolver;
 
@@ -81,9 +81,11 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
         String moduleName = moduleNode.getModuleName();
 
         if (unresolvedModuleDependents.containsKey(moduleName)) {
-            List<ModuleNode> unresolvedModules = new ArrayList<>(unresolvedModuleDependents.get(moduleName));
+            List<String> unresolvedModules = new ArrayList<>(unresolvedModuleDependents.get(moduleName));
 
             unresolvedModules
+                    .stream()
+                    .map(moduleNodes::get)
                     .forEach(unresolvedNode -> {
                         unresolvedNode.removeUnresolvedDependency(moduleName);
                         unresolvedNode.addDependencyNode(moduleNode);
@@ -114,9 +116,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private void addUnresolvedModule(String requiredModuleName, ModuleNode unresolvedModule) {
         synchronized (unresolvedModuleDependents) {
-            List<ModuleNode> unresolvedModules = unresolvedModuleDependents.computeIfAbsent(requiredModuleName, s -> new ArrayList<>());
-            if (!unresolvedModules.contains(unresolvedModule)) {
-                unresolvedModules.add(unresolvedModule);
+            List<String> unresolvedModules = unresolvedModuleDependents.computeIfAbsent(requiredModuleName, s -> new ArrayList<>());
+            String unresolvedModuleName = unresolvedModule.getModuleName();
+            if (!unresolvedModules.contains(unresolvedModuleName)) {
+                unresolvedModules.add(unresolvedModuleName);
             }
         }
     }
@@ -143,8 +146,13 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
             unregisterModule(node);
         }
 
-        moduleNodeResolver.removeModule(moduleNode);
         moduleNodes.remove(moduleNode.getModuleName());
+
+        for (ModuleNode node : moduleNode.getDependencyNodes()) {
+            node.removeDependentNode(moduleNode.getModuleName());
+        }
+
+        moduleNodeResolver.removeModule(moduleNode);
     }
 
     @Override
