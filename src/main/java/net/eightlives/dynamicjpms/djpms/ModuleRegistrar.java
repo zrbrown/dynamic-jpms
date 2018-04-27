@@ -19,5 +19,7 @@ public interface ModuleRegistrar {
 
     Collection<Module> getRegisteredModules();
 
+    Collection<String> getStrandedModules();
+
     void addModuleRegistrationListener(ModuleRegistrationListener listener);
 }

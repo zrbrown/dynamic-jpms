@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -24,6 +25,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<String>> unresolvedModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
+    private final Map<WeakReference<ModuleLayer>, String> strandedModules = new HashMap<>();
     private final ModuleNodeResolver moduleNodeResolver;
 
     public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
@@ -142,16 +144,13 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
             return;
         }
 
-        for (ModuleNode node : moduleNode.getDependentNodes()) {
-            unregisterModule(node);
-        }
+        moduleNode.getDependentNodes().forEach(this::unregisterModule);
+
+        cleanupStrandedModules();
+        strandedModules.put(new WeakReference<>(moduleNode.getModuleLayer()), moduleNode.getModuleName());
 
         moduleNodes.remove(moduleNode.getModuleName());
-
-        for (ModuleNode node : moduleNode.getDependencyNodes()) {
-            node.removeDependentNode(moduleNode.getModuleName());
-        }
-
+        moduleNode.getDependencyNodes().forEach(node -> node.removeDependentNode(moduleNode.getModuleName()));
         moduleNodeResolver.removeModule(moduleNode);
 
         log.info(String.format("Unregistered %s", moduleNode.getModuleName()));
@@ -160,6 +159,22 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     @Override
     public Collection<Module> getRegisteredModules() {
         return null;
+    }
+
+    @Override
+    public Collection<String> getStrandedModules() {
+        cleanupStrandedModules();
+        return new ArrayList<>(strandedModules.values());
+    }
+
+    private void cleanupStrandedModules() {
+        Set<WeakReference<ModuleLayer>> garbageCollectedModules = strandedModules.entrySet().stream()
+                .filter(entry -> entry.getKey().get() == null)
+                .peek(entry -> log.info("Module " + entry.getValue() + " has been fully unregistered"))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+        garbageCollectedModules.forEach(strandedModules::remove);
     }
 
     @Override

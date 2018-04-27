@@ -8,8 +8,8 @@ import java.util.Optional;
 public class ModuleNode {
 
     private final Collection<ModuleNode> dependencyNodes = new ArrayList<>();
-    private final Collection<String> unresolvedDependencies = new ArrayList<>();
     private final Collection<ModuleNode> dependentNodes = new ArrayList<>();
+    private final Collection<String> unresolvedDependencies = new ArrayList<>();
     private final ModuleReference moduleReference;
     private volatile ModuleLayer moduleLayer;
 
