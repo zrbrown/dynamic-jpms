@@ -25,7 +25,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<String>> unresolvedModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
-    private final Map<WeakReference<ModuleLayer>, String> strandedModules = new HashMap<>();
+    private final Map<String, WeakReference<ModuleLayer>> strandedModules = new HashMap<>();
     private final ModuleNodeResolver moduleNodeResolver;
 
     public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
@@ -147,7 +147,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
         moduleNode.getDependentNodes().forEach(this::unregisterModule);
 
         cleanupStrandedModules();
-        strandedModules.put(new WeakReference<>(moduleNode.getModuleLayer()), moduleNode.getModuleName());
+        strandedModules.put(moduleNode.getModuleName(), new WeakReference<>(moduleNode.getModuleLayer()));
 
         moduleNodes.remove(moduleNode.getModuleName());
         moduleNode.getDependencyNodes().forEach(node -> node.removeDependentNode(moduleNode.getModuleName()));
@@ -164,13 +164,13 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     @Override
     public Collection<String> getStrandedModules() {
         cleanupStrandedModules();
-        return new ArrayList<>(strandedModules.values());
+        return new HashSet<>(strandedModules.keySet());
     }
 
     private void cleanupStrandedModules() {
-        Set<WeakReference<ModuleLayer>> garbageCollectedModules = strandedModules.entrySet().stream()
-                .filter(entry -> entry.getKey().get() == null)
-                .peek(entry -> log.info("Module " + entry.getValue() + " has been fully unregistered"))
+        Set<String> garbageCollectedModules = strandedModules.entrySet().stream()
+                .filter(entry -> entry.getValue().get() == null)
+                .peek(entry -> log.info("Module " + entry.getKey() + " has been fully unregistered"))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 
