@@ -34,6 +34,8 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     @Override
     public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
+        cleanupStrandedModules();
+
         ModuleFinder finder = ModuleFinder.of(moduleLocation);
         Optional<ModuleReference> moduleReference = finder.find(moduleName);
 
@@ -168,6 +170,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     private void cleanupStrandedModules() {
+        if (!strandedModules.isEmpty()) {
+            System.gc();
+        }
+
         Set<String> garbageCollectedModules = strandedModules.entrySet().stream()
                 .filter(entry -> entry.getValue().get() == null)
                 .peek(entry -> log.info("Module " + entry.getKey() + " has been fully unregistered"))
