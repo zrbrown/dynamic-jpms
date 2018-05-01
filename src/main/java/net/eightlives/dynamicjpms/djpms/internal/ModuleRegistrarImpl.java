@@ -1,7 +1,7 @@
 package net.eightlives.dynamicjpms.djpms.internal;
 
-import net.eightlives.dynamicjpms.djpms.Module;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
+import net.eightlives.dynamicjpms.djpms.ModuleRegistrationInfo;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrationListener;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleNotFoundException;
 import org.slf4j.Logger;
@@ -159,8 +159,17 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     @Override
-    public Collection<Module> getRegisteredModules() {
-        return null;
+    public Collection<ModuleRegistrationInfo> getRegisteredModules() {
+        return moduleNodes.values().stream()
+                .filter(ModuleNode::isResolved)
+                .map(node -> {
+                    if (node.getModuleLayer() == null) {
+                        return new ModuleRegistrationInfo(node.getModuleName());
+                    } else {
+                        return new ModuleRegistrationInfo(node.getModuleName(), node.getModuleLayer());
+                    }
+                })
+                .collect(Collectors.toSet());
     }
 
     @Override
