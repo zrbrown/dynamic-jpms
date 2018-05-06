@@ -26,14 +26,13 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private final Logger log = LoggerFactory.getLogger(ModuleRegistrarImpl.class);
     private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
     private final Map<String, List<String>> unresolvedModuleDependents = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<ModuleLayer>> unresolvedModuleFutures = new HashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
     private final Map<String, WeakReference<ModuleLayer>> strandedModules = new HashMap<>();
     private final ModuleNodeResolver moduleNodeResolver;
-    private final Executor executor;
 
-    public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver, Executor executor) {
+    public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
         this.moduleNodeResolver = moduleNodeResolver;
-        this.executor = executor;
     }
 
     @Override
@@ -68,13 +67,16 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
         if (moduleNode.isResolved()) {
             try {
-                return CompletableFuture.supplyAsync(() -> registerModule(moduleNode, finder), executor);
+                ModuleLayer resolvedModuleLayer = registerModule(moduleNode, finder);
+                return CompletableFuture.completedFuture(resolvedModuleLayer);
             } catch (Exception e) {
                 log.error("Exception while registering resolved module " + moduleNode.getModuleName(), e);
             }
         }
 
-        return null;
+        CompletableFuture<ModuleLayer> unresolvedModuleFuture = new CompletableFuture<>();
+        unresolvedModuleFutures.put(moduleName, unresolvedModuleFuture);
+        return unresolvedModuleFuture;
     }
 
     private ModuleLayer registerModule(ModuleNode moduleNode, ModuleFinder finder) {
@@ -102,12 +104,14 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                         if (unresolvedNode.isResolved()) {
                             try {
                                 ModuleFinder resolvedNodeFinder = ModuleFinder.of(Paths.get(unresolvedNode.getModuleReference().location().get()));
-                                registerModule(unresolvedNode, resolvedNodeFinder);
+                                ModuleLayer resolvedModuleLayer = registerModule(unresolvedNode, resolvedNodeFinder);
+                                unresolvedModuleFutures.get(moduleName).complete(resolvedModuleLayer);
                             } catch (Exception e) {
                                 log.error("Exception occurred while registering dependent module " + unresolvedNode.getModuleName() +
                                                 " after resolution of module " + moduleName + ". Module " + unresolvedNode.getModuleName() +
                                                 " will not be auto-registered. To reattempt, use ModuleRegistrar.",
                                         e);
+                                unresolvedModuleFutures.get(moduleName).completeExceptionally(e);
                             }
                         }
                     });

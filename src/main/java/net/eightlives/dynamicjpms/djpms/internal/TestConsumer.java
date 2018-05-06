@@ -2,14 +2,13 @@ package net.eightlives.dynamicjpms.djpms.internal;
 
 import net.eightlives.dynamicjpms.djpms.Dog;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
-import net.eightlives.dynamicjpms.djpms.ModuleSubscriber;
 import net.eightlives.dynamicjpms.djpms.ModuleSPIListener;
+import net.eightlives.dynamicjpms.djpms.ModuleSubscriber;
 
 import java.net.URI;
 import java.nio.file.Paths;
 import java.util.ServiceLoader;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
 
 public class TestConsumer {
@@ -18,7 +17,7 @@ public class TestConsumer {
 
     public static void main(String[] args) throws InterruptedException, ExecutionException {
         ModuleSPIListener spiListener = new ModuleSPIListener();
-        ModuleRegistrar m = new ModuleRegistrarImpl(new ModuleNodeResolverImpl(), ForkJoinPool.commonPool());
+        ModuleRegistrar m = new ModuleRegistrarImpl(new ModuleNodeResolverImpl());
         m.addModuleRegistrationListener(spiListener);
 
         SubmissionPublisher<Class<Dog>> dogPublisher = spiListener.subscribeRegistrations(Dog.class);
