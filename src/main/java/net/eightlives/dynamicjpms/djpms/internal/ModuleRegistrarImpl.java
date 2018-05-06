@@ -14,7 +14,9 @@ import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 public class ModuleRegistrarImpl implements ModuleRegistrar {
@@ -27,13 +29,15 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
     private final Map<String, WeakReference<ModuleLayer>> strandedModules = new HashMap<>();
     private final ModuleNodeResolver moduleNodeResolver;
+    private final Executor executor;
 
-    public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver) {
+    public ModuleRegistrarImpl(ModuleNodeResolver moduleNodeResolver, Executor executor) {
         this.moduleNodeResolver = moduleNodeResolver;
+        this.executor = executor;
     }
 
     @Override
-    public ModuleLayer registerModule(String moduleName, Path moduleLocation) {
+    public CompletableFuture<ModuleLayer> registerModule(String moduleName, Path moduleLocation) {
         cleanupStrandedModules();
 
         ModuleFinder finder = ModuleFinder.of(moduleLocation);
@@ -64,7 +68,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
         if (moduleNode.isResolved()) {
             try {
-                return registerModule(moduleNode, finder);
+                return CompletableFuture.supplyAsync(() -> registerModule(moduleNode, finder), executor);
             } catch (Exception e) {
                 log.error("Exception while registering resolved module " + moduleNode.getModuleName(), e);
             }

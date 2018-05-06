@@ -8,15 +8,17 @@ import net.eightlives.dynamicjpms.djpms.ModuleSPIListener;
 import java.net.URI;
 import java.nio.file.Paths;
 import java.util.ServiceLoader;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
 
 public class TestConsumer {
 
     private static final String jarLocation = "file:///home/zack/.m2/repository/com/zackrbrown/test/moduletest/1.0-SNAPSHOT";
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, ExecutionException {
         ModuleSPIListener spiListener = new ModuleSPIListener();
-        ModuleRegistrar m = new ModuleRegistrarImpl(new ModuleNodeResolverImpl());
+        ModuleRegistrar m = new ModuleRegistrarImpl(new ModuleNodeResolverImpl(), ForkJoinPool.commonPool());
         m.addModuleRegistrationListener(spiListener);
 
         SubmissionPublisher<Class<Dog>> dogPublisher = spiListener.subscribeRegistrations(Dog.class);
@@ -29,7 +31,7 @@ public class TestConsumer {
 
         Thread.sleep(5000);
 
-        ModuleLayer ml = m.registerModule("com.zackrbrown.test.moduletest", Paths.get(URI.create(jarLocation)));
+        ModuleLayer ml = m.registerModule("com.zackrbrown.test.moduletest", Paths.get(URI.create(jarLocation))).get();
 
         while (1 == 1) {
             Thread.onSpinWait();
