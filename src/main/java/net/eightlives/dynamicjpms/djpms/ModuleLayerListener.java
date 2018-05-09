@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.SubmissionPublisher;
 
-public class ModuleLayerListener implements ModuleRegistrationListener {
+public class ModuleLayerListener implements ModuleResolutionListener {
 
     private final Map<String, SubmissionPublisher<ModuleLayer>> publishers = new HashMap<>();
 

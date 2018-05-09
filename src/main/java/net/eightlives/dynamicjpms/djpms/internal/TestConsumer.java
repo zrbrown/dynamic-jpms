@@ -18,7 +18,7 @@ public class TestConsumer {
     public static void main(String[] args) throws InterruptedException, ExecutionException {
         ModuleSPIListener spiListener = new ModuleSPIListener();
         ModuleRegistrar m = new ModuleRegistrarImpl(new ModuleNodeResolverImpl());
-        m.addModuleRegistrationListener(spiListener);
+        m.addModuleResolutionListener(spiListener);
 
         SubmissionPublisher<Class<Dog>> dogPublisher = spiListener.subscribeRegistrations(Dog.class);
         ModuleSubscriber<Class<Dog>> dogSubscriber = new ModuleSubscriber<>(dogClass

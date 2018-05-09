@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.SubmissionPublisher;
 
 // TODO put in new project (SPI extension support)
-public class ModuleSPIListener implements ModuleRegistrationListener {
+public class ModuleSPIListener implements ModuleResolutionListener {
 
     private final Logger log = LoggerFactory.getLogger(ModuleSPIListener.class);
     private final TypeSafeInsertMap publishers = new TypeSafeInsertMap();

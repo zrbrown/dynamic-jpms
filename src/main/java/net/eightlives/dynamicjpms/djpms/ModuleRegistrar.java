@@ -44,9 +44,9 @@ public interface ModuleRegistrar {
     Collection<String> getStrandedModules();
 
     /**
-     * Adds a {@link ModuleRegistrationListener} to be notified when a module is registered.
+     * Adds a {@link ModuleResolutionListener} to be notified when a module is resolved.
      *
-     * @param listener the listener to be notified when a module is registered
+     * @param listener the listener to be notified when a module is resolved
      */
-    void addModuleRegistrationListener(ModuleRegistrationListener listener);
+    void addModuleResolutionListener(ModuleResolutionListener listener);
 }

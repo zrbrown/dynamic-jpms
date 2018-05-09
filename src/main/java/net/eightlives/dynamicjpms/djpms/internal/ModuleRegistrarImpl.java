@@ -2,7 +2,7 @@ package net.eightlives.dynamicjpms.djpms.internal;
 
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrationInfo;
-import net.eightlives.dynamicjpms.djpms.ModuleRegistrationListener;
+import net.eightlives.dynamicjpms.djpms.ModuleResolutionListener;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +16,6 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 public class ModuleRegistrarImpl implements ModuleRegistrar {
@@ -24,7 +23,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private static final Set<String> BOOT_LAYER_MODULES = ModuleLayer.boot().modules().stream().map(java.lang.Module::getName).collect(Collectors.toSet());
 
     private final Logger log = LoggerFactory.getLogger(ModuleRegistrarImpl.class);
-    private final List<ModuleRegistrationListener> registrationListeners = new ArrayList<>();
+    private final List<ModuleResolutionListener> resolutionListeners = new ArrayList<>();
     private final Map<String, List<String>> unresolvedModuleDependents = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<ModuleLayer>> unresolvedModuleFutures = new HashMap<>();
     private final Map<String, ModuleNode> moduleNodes = new ConcurrentHashMap<>();
@@ -67,7 +66,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
         if (moduleNode.isResolved()) {
             try {
-                ModuleLayer resolvedModuleLayer = registerModule(moduleNode, finder);
+                ModuleLayer resolvedModuleLayer = resolveModule(moduleNode, finder);
                 return CompletableFuture.completedFuture(resolvedModuleLayer);
             } catch (Exception e) {
                 log.error("Exception while registering resolved module " + moduleNode.getModuleName(), e);
@@ -79,10 +78,10 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
         return unresolvedModuleFuture;
     }
 
-    private ModuleLayer registerModule(ModuleNode moduleNode, ModuleFinder finder) {
+    private ModuleLayer resolveModule(ModuleNode moduleNode, ModuleFinder finder) {
         ModuleLayer newLayer = moduleNodeResolver.resolveModule(moduleNode, finder);
         log.info(String.format("Registered %s", moduleNode.getModuleName()));
-        notifyListeners(moduleNode.getModuleName(), newLayer);
+        notifyResolutionListeners(moduleNode.getModuleName(), newLayer);
         registerDependentModules(moduleNode);
         return newLayer;
     }
@@ -104,7 +103,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
                         if (unresolvedNode.isResolved()) {
                             try {
                                 ModuleFinder resolvedNodeFinder = ModuleFinder.of(Paths.get(unresolvedNode.getModuleReference().location().get()));
-                                ModuleLayer resolvedModuleLayer = registerModule(unresolvedNode, resolvedNodeFinder);
+                                ModuleLayer resolvedModuleLayer = resolveModule(unresolvedNode, resolvedNodeFinder);
                                 unresolvedModuleFutures.get(moduleName).complete(resolvedModuleLayer);
                             } catch (Exception e) {
                                 log.error("Exception occurred while registering dependent module " + unresolvedNode.getModuleName() +
@@ -120,8 +119,8 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
         }
     }
 
-    private void notifyListeners(String moduleName, ModuleLayer moduleLayer) {
-        for (ModuleRegistrationListener listener : registrationListeners) {
+    private void notifyResolutionListeners(String moduleName, ModuleLayer moduleLayer) {
+        for (ModuleResolutionListener listener : resolutionListeners) {
             listener.moduleRegistered(moduleName, moduleLayer);
         }
     }
@@ -201,7 +200,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     @Override
-    public void addModuleRegistrationListener(ModuleRegistrationListener listener) {
-        registrationListeners.add(listener);
+    public void addModuleResolutionListener(ModuleResolutionListener listener) {
+        resolutionListeners.add(listener);
     }
 }

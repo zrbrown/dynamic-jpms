@@ -1,6 +1,6 @@
 package net.eightlives.dynamicjpms.djpms;
 
-public interface ModuleRegistrationListener {
+public interface ModuleResolutionListener {
 
     void moduleRegistered(String moduleName, ModuleLayer moduleLayer);
 }
