@@ -7,6 +7,9 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Contains DJPMS registration methods.
+ */
 public interface ModuleRegistrar {
 
     static ModuleRegistrar getInstance() {
@@ -25,6 +28,19 @@ public interface ModuleRegistrar {
      */
     CompletableFuture<ModuleLayer> registerModule(String moduleName, Path moduleLocation);
 
+    /**
+     * Unregisters a JPMS module from DJPMS. This will remove references to the JPMS module from DJPMS (with the exception
+     * of weak references) and the DJPMS module will be considered <b>stranded</b> until its {@link ModuleLayer} has been
+     * garbage collected. Module layer garbage collection can only occur once all non-weak references to the module layer
+     * and its classes (TODO and its classloader?) are removed from the running JVM. Once garbage collection occurs,
+     * the DJPMS module is no longer considered stranded (i.e. {@link #getStrandedModules()} will not return it).
+     *
+     * If this method is called, make sure to keep close track of everything consumed from the corresponding module layer.
+     * Just a single stray class reference can prevent the entire module layer from being garbage collected. Constant
+     * registering and carelessly unregistering can lead to memory leaks.
+     *
+     * @param moduleName the name of the module to unregister
+     */
     void unregisterModule(String moduleName);
 
     /**
@@ -32,10 +48,10 @@ public interface ModuleRegistrar {
      *
      * @return information on all currently registered modules, both resolved and unresolved
      */
-    Collection<ModuleRegistrationInfo> getRegisteredModules();
+    Collection<RegisteredModuleInfo> getRegisteredModules();
 
     /**
-     * Returns the names of all currently stranded modules. A stranded module is a module that has been unregistered
+     * Returns the names of all currently <b>stranded</b> modules. A stranded module is a module that has been unregistered
      * but whose {@link ModuleLayer} has not been garbage collected. See {@link #unregisterModule(String)} for more
      * information.
      *

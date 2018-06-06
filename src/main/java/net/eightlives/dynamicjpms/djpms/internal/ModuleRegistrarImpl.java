@@ -1,7 +1,7 @@
 package net.eightlives.dynamicjpms.djpms.internal;
 
 import net.eightlives.dynamicjpms.djpms.ModuleRegistrar;
-import net.eightlives.dynamicjpms.djpms.ModuleRegistrationInfo;
+import net.eightlives.dynamicjpms.djpms.RegisteredModuleInfo;
 import net.eightlives.dynamicjpms.djpms.ModuleResolutionListener;
 import net.eightlives.dynamicjpms.djpms.exceptions.ModuleNotFoundException;
 import org.slf4j.Logger;
@@ -121,7 +121,7 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
 
     private void notifyResolutionListeners(String moduleName, ModuleLayer moduleLayer) {
         for (ModuleResolutionListener listener : resolutionListeners) {
-            listener.moduleRegistered(moduleName, moduleLayer);
+            listener.moduleResolved(moduleName, moduleLayer);
         }
     }
 
@@ -166,14 +166,14 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     }
 
     @Override
-    public Collection<ModuleRegistrationInfo> getRegisteredModules() {
+    public Collection<RegisteredModuleInfo> getRegisteredModules() {
         return moduleNodes.values().stream()
                 .filter(ModuleNode::isResolved)
                 .map(node -> {
                     if (node.getModuleLayer() == null) {
-                        return new ModuleRegistrationInfo(node.getModuleName());
+                        return new RegisteredModuleInfo(node.getModuleName());
                     } else {
-                        return new ModuleRegistrationInfo(node.getModuleName(), node.getModuleLayer());
+                        return new RegisteredModuleInfo(node.getModuleName(), node.getModuleLayer());
                     }
                 })
                 .collect(Collectors.toSet());
@@ -188,15 +188,15 @@ public class ModuleRegistrarImpl implements ModuleRegistrar {
     private void cleanupStrandedModules() {
         if (!strandedModules.isEmpty()) {
             System.gc();
+
+            Set<String> garbageCollectedModules = strandedModules.entrySet().stream()
+                    .filter(entry -> entry.getValue().get() == null)
+                    .peek(entry -> log.info("Module " + entry.getKey() + " has been fully unregistered"))
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
+
+            garbageCollectedModules.forEach(strandedModules::remove);
         }
-
-        Set<String> garbageCollectedModules = strandedModules.entrySet().stream()
-                .filter(entry -> entry.getValue().get() == null)
-                .peek(entry -> log.info("Module " + entry.getKey() + " has been fully unregistered"))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-
-        garbageCollectedModules.forEach(strandedModules::remove);
     }
 
     @Override

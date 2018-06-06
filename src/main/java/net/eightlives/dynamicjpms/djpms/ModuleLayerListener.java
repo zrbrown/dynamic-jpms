@@ -9,7 +9,7 @@ public class ModuleLayerListener implements ModuleResolutionListener {
     private final Map<String, SubmissionPublisher<ModuleLayer>> publishers = new HashMap<>();
 
     @Override
-    public void moduleRegistered(String moduleName, ModuleLayer moduleLayer) {
+    public void moduleResolved(String moduleName, ModuleLayer moduleLayer) {
         if (publishers.containsKey(moduleName)) {
             publishers.get(moduleName).submit(moduleLayer);
         }

@@ -14,7 +14,7 @@ public class ModuleSPIListener implements ModuleResolutionListener {
     private final TypeSafeInsertMap publishers = new TypeSafeInsertMap();
 
     @Override
-    public void moduleRegistered(String moduleName, ModuleLayer moduleLayer) {
+    public void moduleResolved(String moduleName, ModuleLayer moduleLayer) {
         ClassLoader classLoader = moduleLayer.findLoader(moduleName);
 
         moduleLayer.findModule(moduleName).ifPresent(module -> module.getDescriptor().provides()
