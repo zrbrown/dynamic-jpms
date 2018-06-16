@@ -32,7 +32,7 @@ public interface ModuleRegistrar {
      * Unregisters a JPMS module from DJPMS. This will remove references to the JPMS module from DJPMS (with the exception
      * of weak references) and the DJPMS module will be considered <b>stranded</b> until its {@link ModuleLayer} has been
      * garbage collected. Module layer garbage collection can only occur once all non-weak references to the module layer
-     * and its classes (TODO and its classloader?) are removed from the running JVM. Once garbage collection occurs,
+     * and its classes are removed from the running JVM. Once garbage collection occurs,
      * the DJPMS module is no longer considered stranded (i.e. {@link #getStrandedModules()} will not return it).
      *
      * If this method is called, make sure to keep close track of everything consumed from the corresponding module layer.
